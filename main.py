@@ -4,7 +4,8 @@ import json
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
-from requests import Request
+from google.auth.transport.requests import Request
+
 import re
 
 # If modifying scopes, delete the file token.json
@@ -46,39 +47,61 @@ def clean_text(text):
     text = re.sub(r'\s+', ' ', text)  # Replace multiple spaces/newlines/tabs with single space
     return text.strip().split('****This')[0]
 
-def get_emails(service, max_results):
-    query = 'alerts@axisbank.com'
-    results = service.users().messages().list(userId='me', q=query, maxResults=max_results).execute()
-    messages = results.get('messages', [])
+def get_emails(service, sender_email):
+    query = f'from:{sender_email}'
+    messages = []
+    next_page_token = None
+
+    while True:
+        response = service.users().messages().list(
+            userId='me',
+            q=query,
+            pageToken=next_page_token,
+            maxResults=100  # max allowed per request
+        ).execute()
+
+        messages.extend(response.get('messages', []))
+        next_page_token = response.get('nextPageToken')
+
+        if not next_page_token:
+            break
 
     email_list = []
-
+ 
     for message in messages:
         msg = service.users().messages().get(userId='me', id=message['id'], format='full').execute()
         headers = msg['payload']['headers']
         subject = next((h['value'] for h in headers if h['name'] == 'Subject'), 'No Subject')
         sender = next((h['value'] for h in headers if h['name'] == 'From'), 'Unknown Sender')
         raw_body  = extract_text_from_payload(msg['payload'])
-        text_body = clean_text(raw_body)
+        text_body = clean_text(raw_body).strip()
+        snippet = str(msg['snippet'])
 
-        email_list.append({
-            'subject': subject,
-            'from': sender,
-            'body': text_body.strip()
-        })
+        if text_body.lower().__contains__("credit") or text_body.lower().__contains__("debit") or snippet.lower().__contains__("credit") or snippet.lower().__contains__("debit"):
+            email_list.append({
+                'subject': subject,
+                'from': sender,
+                'body': text_body,
+                'snippet': snippet
+            })
 
     return email_list
+
 
 def main():
     creds = authenticate_gmail()
     service = build('gmail', 'v1', credentials=creds)
 
-    emails = get_emails(service, max_results=10)
+    sender_email = 'alerts@axisbank.com'
+    emails = get_emails(service, sender_email)
+
     for i, email in enumerate(emails, 1):
         print(f"\n--- Email {i} ---")
         print("From:", email['from'])
         print("Subject:", email['subject'])
-        print("body:", email['body'])
+        print("Snippet:", email['snippet'])
+        print("Body:", email['body'])
+
 
 if __name__ == '__main__':
     main()
