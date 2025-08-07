@@ -6,6 +6,9 @@ from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
 from google.auth.transport.requests import Request
 
+from google import genai
+from google.genai import types
+
 import re
 
 # If modifying scopes, delete the file token.json
@@ -57,7 +60,7 @@ def get_emails(service, sender_email):
             userId='me',
             q=query,
             pageToken=next_page_token,
-            maxResults=100  # max allowed per request
+            maxResults=10  # max allowed per request
         ).execute()
 
         messages.extend(response.get('messages', []))
@@ -87,6 +90,32 @@ def get_emails(service, sender_email):
 
     return email_list
 
+def llm_response(data):
+    client = genai.Client(api_key="AIzaSyCUqrlypENrPIm0S7NPuCpfAiwZPvCG6C8")
+    text = data
+    fields=["type", "amount", "date", "time", "Transaction Info"]
+    response = client.models.generate_content(
+        model="gemma-3-1b-it",
+        contents =
+        f"""You are a helpful AI Assistant, from a given text extracts the required fields.
+        Text:{text}
+        Fields:{fields}
+        Do not provide any explanations.
+        Return the output in the below provided JSON format only.
+        Below is an example provided, Return the output based on the JSON format of the given example.
+        {
+            {
+                "type": "credit",
+                "amount": "1107.00",
+                "date": "08-11-2022",
+                "time": "09:27:32",
+                "Transaction Info": "UPI/P2M/55651234872/Academy"
+            }
+        }
+        """
+    )
+    print(response.text)
+
 
 def main():
     creds = authenticate_gmail()
@@ -95,13 +124,17 @@ def main():
     sender_email = 'alerts@axisbank.com'
     emails = get_emails(service, sender_email)
 
-    for i, email in enumerate(emails, 1):
-        print(f"\n--- Email {i} ---")
-        print("From:", email['from'])
-        print("Subject:", email['subject'])
-        print("Snippet:", email['snippet'])
-        print("Body:", email['body'])
+    for mail in emails[5:20]:
+        llm_response(mail)
+
+    # for i, email in enumerate(emails, 1):
+    #     print(f"\n--- Email {i} ---")
+    #     print("From:", email['from'])
+    #     print("Subject:", email['subject'])
+    #     print("Snippet:", email['snippet'])
+    #     print("Body:", email['body'])
 
 
 if __name__ == '__main__':
     main()
+    #llm_response()
