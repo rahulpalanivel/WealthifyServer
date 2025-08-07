@@ -91,7 +91,10 @@ def get_emails(service, sender_email):
     return email_list
 
 def llm_response(data):
-    client = genai.Client(api_key="AIzaSyCUqrlypENrPIm0S7NPuCpfAiwZPvCG6C8")
+    with open('D:\Projects\ML-DL\Wealthify\api_key.json', 'r') as file:
+        key = json.load(file)
+    apiKey = key['api_key']
+    client = genai.Client(api_key=apiKey)
     text = data
     fields=["type", "amount", "date", "time", "Transaction Info"]
     response = client.models.generate_content(
