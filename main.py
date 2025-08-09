@@ -11,6 +11,8 @@ from google.genai import types
 
 import re
 
+from pymongo.mongo_client import MongoClient
+
 # If modifying scopes, delete the file token.json
 SCOPES = ['https://www.googleapis.com/auth/gmail.readonly']
 
@@ -24,7 +26,7 @@ def authenticate_gmail():
         if creds and creds.expired and creds.refresh_token:
             creds.refresh(Request())
         else:
-            flow = InstalledAppFlow.from_client_secrets_file('D:\Projects\ML-DL\Wealthify\googleSecrets.json', SCOPES)
+            flow = InstalledAppFlow.from_client_secrets_file('googleSecrets.json', SCOPES)
             creds = flow.run_local_server(port=0)
         # Save token for later use
         with open('token.json', 'w') as token:
@@ -50,6 +52,13 @@ def clean_text(text):
     text = re.sub(r'\s+', ' ', text)  # Replace multiple spaces/newlines/tabs with single space
     return text.strip().split('****This')[0]
 
+def format_json(text:str):
+    if text.__contains__("```json"):
+        text = text.split("```json")[1]
+        text = text.split("```")[0]
+    return text
+    
+    
 def get_emails(service, sender_email):
     query = f'from:{sender_email}'
     messages = []
@@ -91,7 +100,7 @@ def get_emails(service, sender_email):
     return email_list
 
 def llm_response(data):
-    with open('D:\Projects\ML-DL\Wealthify\api_key.json', 'r') as file:
+    with open('api_key.json', 'r') as file:
         key = json.load(file)
     apiKey = key['api_key']
     client = genai.Client(api_key=apiKey)
@@ -117,8 +126,18 @@ def llm_response(data):
         }
         """
     )
-    print(response.text)
+    return format_json(response.text)
 
+def addToMongodb(data):
+        
+    uri = "mongodb+srv://palanivelrahul45:cNJ3NjCyqHrn1S3n@transactiondata.dyvlroy.mongodb.net/?retryWrites=true&w=majority&appName=TransactionData"
+
+    client = MongoClient(uri)
+
+    db = client["TransactionDb"]
+    collection = db["TransactionCollection(UnStructured)"]
+
+    collection.insert_many(data)
 
 def main():
     creds = authenticate_gmail()
@@ -127,17 +146,15 @@ def main():
     sender_email = 'alerts@axisbank.com'
     emails = get_emails(service, sender_email)
 
-    for mail in emails[5:20]:
-        llm_response(mail)
+    data = []
+    for mail in emails:
+        #res = llm_response(mail)
+        data.append(mail)
+    
+    addToMongodb(data)
+    
 
-    # for i, email in enumerate(emails, 1):
-    #     print(f"\n--- Email {i} ---")
-    #     print("From:", email['from'])
-    #     print("Subject:", email['subject'])
-    #     print("Snippet:", email['snippet'])
-    #     print("Body:", email['body'])
 
 
 if __name__ == '__main__':
     main()
-    #llm_response()
