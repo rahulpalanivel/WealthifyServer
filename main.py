@@ -18,19 +18,25 @@ SCOPES = ['https://www.googleapis.com/auth/gmail.readonly']
 
 def authenticate_gmail():
     creds = None
-    # Load credentials if available
+
+    # 1. Load existing credentials if available
     if os.path.exists('token.json'):
         creds = Credentials.from_authorized_user_file('token.json', SCOPES)
-    # Otherwise, go through OAuth flow
+
+    # 2. If no credentials or invalid, refresh or do manual auth once
     if not creds or not creds.valid:
         if creds and creds.expired and creds.refresh_token:
+            # Refresh automatically
             creds.refresh(Request())
         else:
+            # First-time manual authentication (browser login)
             flow = InstalledAppFlow.from_client_secrets_file('googleSecrets.json', SCOPES)
-            creds = flow.run_local_server(port=0)
-        # Save token for later use
+            creds = flow.run_local_server()
+
+        # 3. Save the credentials (includes refresh token) for next run
         with open('token.json', 'w') as token:
             token.write(creds.to_json())
+
     return creds
 
 
@@ -150,8 +156,8 @@ def main():
     for mail in emails:
         #res = llm_response(mail)
         data.append(mail)
-    
-    addToMongodb(data)
+    print(data)
+    #addToMongodb(data)
     
 
 
