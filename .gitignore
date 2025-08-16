@@ -2,3 +2,5 @@
 googleSecrets.json
 token.json
 api_key.json
+wealthifyService.json
+last_history.json

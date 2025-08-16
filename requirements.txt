@@ -4,3 +4,5 @@ google-auth-oauthlib
 google-genai
 
 pymongo
+
+google-cloud-pubsub

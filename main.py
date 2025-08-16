@@ -1,47 +1,36 @@
 import os
 import base64
 import json
+import re
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
 from google.auth.transport.requests import Request
-
-from google import genai
-from google.genai import types
-
-import re
-
 from pymongo.mongo_client import MongoClient
+from google.cloud import pubsub_v1
+from google.oauth2 import service_account
 
-# If modifying scopes, delete the file token.json
 SCOPES = ['https://www.googleapis.com/auth/gmail.readonly']
 
+HISTORY_FILE = "last_history.json"
+
+# ---------------- Gmail Authentication ----------------
 def authenticate_gmail():
     creds = None
-
-    # 1. Load existing credentials if available
     if os.path.exists('token.json'):
         creds = Credentials.from_authorized_user_file('token.json', SCOPES)
-
-    # 2. If no credentials or invalid, refresh or do manual auth once
     if not creds or not creds.valid:
         if creds and creds.expired and creds.refresh_token:
-            # Refresh automatically
             creds.refresh(Request())
         else:
-            # First-time manual authentication (browser login)
             flow = InstalledAppFlow.from_client_secrets_file('googleSecrets.json', SCOPES)
             creds = flow.run_local_server()
-
-        # 3. Save the credentials (includes refresh token) for next run
         with open('token.json', 'w') as token:
             token.write(creds.to_json())
-
     return creds
 
-
+# ---------------- Helpers ----------------
 def extract_text_from_payload(payload):
-    # Recursively get text/plain content
     if payload.get('mimeType') == 'text/plain' and payload.get('body', {}).get('data'):
         data = payload['body']['data']
         return base64.urlsafe_b64decode(data).decode('utf-8')
@@ -54,113 +43,108 @@ def extract_text_from_payload(payload):
     return ""
 
 def clean_text(text):
-    # Remove excessive newlines, tabs, and spaces
-    text = re.sub(r'\s+', ' ', text)  # Replace multiple spaces/newlines/tabs with single space
+    text = re.sub(r'\s+', ' ', text)
     return text.strip().split('****This')[0]
 
-def format_json(text:str):
-    if text.__contains__("```json"):
-        text = text.split("```json")[1]
-        text = text.split("```")[0]
-    return text
-    
-    
-def get_emails(service, sender_email):
-    query = f'from:{sender_email}'
-    messages = []
-    next_page_token = None
+def save_last_history(history_id):
+    with open(HISTORY_FILE, "w") as f:
+        json.dump({"historyId": history_id}, f)
 
-    while True:
-        response = service.users().messages().list(
-            userId='me',
-            q=query,
-            pageToken=next_page_token,
-            maxResults=10  # max allowed per request
-        ).execute()
+def load_last_history():
+    if os.path.exists(HISTORY_FILE):
+        with open(HISTORY_FILE, "r") as f:
+            return json.load(f).get("historyId")
+    return None
 
-        messages.extend(response.get('messages', []))
-        next_page_token = response.get('nextPageToken')
+# ---------------- Gmail Watch Setup ----------------
+def watch_gmail(service):
+    topic_name = 'projects/wealthify-467717/topics/Wealthify'
+    request = {
+        'labelIds': ['INBOX'],
+        'topicName': topic_name
+    }
+    response = service.users().watch(userId='me', body=request).execute()
+    history_id = response.get("historyId")
+    if history_id:
+        save_last_history(history_id)
+    print("Watch set. Expiration:", response.get('expiration'), "Initial historyId:", history_id)
 
-        if not next_page_token:
-            break
+# ---------------- Process New Emails ----------------
+def process_new_emails(service, incoming_history_id):
+    last_history_id = load_last_history()
+    if not last_history_id:
+        print("No stored historyId, saving current one and skipping...")
+        save_last_history(incoming_history_id)
+        return
 
-    email_list = []
- 
-    for message in messages:
-        msg = service.users().messages().get(userId='me', id=message['id'], format='full').execute()
-        headers = msg['payload']['headers']
-        subject = next((h['value'] for h in headers if h['name'] == 'Subject'), 'No Subject')
-        sender = next((h['value'] for h in headers if h['name'] == 'From'), 'Unknown Sender')
-        raw_body  = extract_text_from_payload(msg['payload'])
-        text_body = clean_text(raw_body).strip()
-        snippet = str(msg['snippet'])
+    response = service.users().history().list(
+        userId='me',
+        startHistoryId=last_history_id,
+        historyTypes=['messageAdded'],
+        labelId='INBOX'
+    ).execute()
 
-        if text_body.lower().__contains__("credit") or text_body.lower().__contains__("debit") or snippet.lower().__contains__("credit") or snippet.lower().__contains__("debit"):
-            email_list.append({
-                'subject': subject,
-                'from': sender,
-                'body': text_body,
-                'snippet': snippet
-            })
+    history = response.get('history', [])
+    if not history:
+        print("No new messages found.")
+    else:
+        for record in history:
+            messages = record.get('messages', [])
+            for message in messages:
+                msg = service.users().messages().get(userId='me', id=message['id'], format='full').execute()
+                headers = msg['payload']['headers']
+                subject = next((h['value'] for h in headers if h['name'] == 'Subject'), 'No Subject')
+                sender = next((h['value'] for h in headers if h['name'] == 'From'), 'Unknown Sender')
+                raw_body = extract_text_from_payload(msg['payload'])
+                text_body = clean_text(raw_body)
+                snippet = msg.get('snippet', '')
 
-    return email_list
+                print("📩 New Email:")
+                print("From:", sender)
+                print("Subject:", subject)
+                print("Body:", text_body[:200], "...")  # preview first 200 chars
+                print("Snippet:", snippet)
 
-def llm_response(data):
-    with open('api_key.json', 'r') as file:
-        key = json.load(file)
-    apiKey = key['api_key']
-    client = genai.Client(api_key=apiKey)
-    text = data
-    fields=["type", "amount", "date", "time", "Transaction Info"]
-    response = client.models.generate_content(
-        model="gemma-3-1b-it",
-        contents =
-        f"""You are a helpful AI Assistant, from a given text extracts the required fields.
-        Text:{text}
-        Fields:{fields}
-        Do not provide any explanations.
-        Return the output in the below provided JSON format only.
-        Below is an example provided, Return the output based on the JSON format of the given example.
-        {
-            {
-                "type": "credit",
-                "amount": "1107.00",
-                "date": "08-11-2022",
-                "time": "09:27:32",
-                "Transaction Info": "UPI/P2M/55651234872/Academy"
-            }
-        }
-        """
+    # update historyId
+    new_history_id = response.get("historyId", incoming_history_id)
+    save_last_history(new_history_id)
+
+# ---------------- Pub/Sub Pull ----------------
+def pull_new_messages(creds, subscription_path):
+    credentials = service_account.Credentials.from_service_account_file(
+        'wealthifyService.json'
     )
-    return format_json(response.text)
+    subscriber = pubsub_v1.SubscriberClient(credentials=credentials)
 
-def addToMongodb(data):
-        
-    uri = "mongodb+srv://palanivelrahul45:cNJ3NjCyqHrn1S3n@transactiondata.dyvlroy.mongodb.net/?retryWrites=true&w=majority&appName=TransactionData"
+    def callback(message):
+        print(f"🔔 Pub/Sub Notification: {message.data}")
+        try:
+            data = json.loads(message.data.decode('utf-8'))
+            history_id = data.get('historyId')
+            if history_id:
+                service = build('gmail', 'v1', credentials=creds)
+                process_new_emails(service, history_id)
+            message.ack()
+        except Exception as e:
+            print("Error processing message:", e)
+            message.nack()
 
-    client = MongoClient(uri)
+    streaming_pull_future = subscriber.subscribe(subscription_path, callback=callback)
+    print(f"Listening for messages on {subscription_path}...\n")
 
-    db = client["TransactionDb"]
-    collection = db["TransactionCollection(UnStructured)"]
+    try:
+        streaming_pull_future.result()
+    except KeyboardInterrupt:
+        streaming_pull_future.cancel()
 
-    collection.insert_many(data)
-
+# ---------------- Main ----------------
 def main():
     creds = authenticate_gmail()
     service = build('gmail', 'v1', credentials=creds)
 
-    sender_email = 'alerts@axisbank.com'
-    emails = get_emails(service, sender_email)
-
-    data = []
-    for mail in emails:
-        #res = llm_response(mail)
-        data.append(mail)
-    print(data)
-    #addToMongodb(data)
-    
-
-
+    watch_gmail(service)  # sets up watch + stores initial historyId
+    subscription_path = "projects/wealthify-467717/subscriptions/Wealthify-sub"
+    pull_new_messages(creds, subscription_path)
 
 if __name__ == '__main__':
     main()
