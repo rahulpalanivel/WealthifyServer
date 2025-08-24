@@ -11,8 +11,13 @@ from google.cloud import pubsub_v1
 from google.oauth2 import service_account
 
 SCOPES = ['https://www.googleapis.com/auth/gmail.readonly']
-
 HISTORY_FILE = "last_history.json"
+
+# ---------------- Config ----------------
+ALLOWED_SENDERS = [
+    "alerts@axisbank.com",
+]
+KEYWORDS = ["credit", "debit"]
 
 # ---------------- Gmail Authentication ----------------
 def authenticate_gmail():
@@ -99,11 +104,18 @@ def process_new_emails(service, incoming_history_id):
                 text_body = clean_text(raw_body)
                 snippet = msg.get('snippet', '')
 
-                print("📩 New Email:")
-                print("From:", sender)
-                print("Subject:", subject)
-                print("Body:", text_body[:200], "...")  # preview first 200 chars
-                print("Snippet:", snippet)
+                # ---- Filtering ----
+                sender_ok = any(allowed.lower() in sender.lower() for allowed in ALLOWED_SENDERS)
+                keyword_ok = any(k in text_body.lower() or k in subject.lower() or k in snippet.lower() for k in KEYWORDS)
+
+                if sender_ok and keyword_ok:
+                    print("\n✅ Matched Email")
+                    print("From:", sender)
+                    print("Subject:", subject)
+                    print("Body:", text_body)
+                    print("Snippet:", snippet)
+                else:
+                    print("\n⏩ Skipped Email:", subject, "from", sender)
 
     # update historyId
     new_history_id = response.get("historyId", incoming_history_id)
@@ -117,7 +129,6 @@ def pull_new_messages(creds, subscription_path):
     subscriber = pubsub_v1.SubscriberClient(credentials=credentials)
 
     def callback(message):
-        print(f"🔔 Pub/Sub Notification: {message.data}")
         try:
             data = json.loads(message.data.decode('utf-8'))
             history_id = data.get('historyId')
