@@ -1,13 +1,21 @@
 import json
+import os
+from dotenv import load_dotenv
+
 from googleapiclient.discovery import build
 from google.cloud import pubsub_v1
 from google.oauth2 import service_account
 
-from src.gmail.process_email import process_new_emails
+from gmail.process_email import process_new_emails
+
+load_dotenv()
+
+service_path = os.getenv('SERVICE')
+service = json.loads(service_path)
 
 def pull_new_messages(creds, subscription_path):
-    credentials = service_account.Credentials.from_service_account_file(
-        r'Secrets\wealthifyService.json'
+    credentials = service_account.Credentials.from_service_account_info(
+        service
     )
     subscriber = pubsub_v1.SubscriberClient(credentials=credentials)
 

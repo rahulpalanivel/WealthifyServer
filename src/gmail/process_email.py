@@ -1,5 +1,5 @@
-from src.utils.data_processing import extract_text_from_payload, clean_text
-from src.utils.modify_history import save_last_history, load_last_history
+from utils.data_processing import extract_text_from_payload, clean_text
+from utils.modify_history import save_last_history, load_last_history
 
 ALLOWED_SENDERS = [
     "alerts@axisbank.com",

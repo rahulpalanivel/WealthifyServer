@@ -1,14 +1,16 @@
 import json
 import os
+from dotenv import load_dotenv, set_key
 
-HISTORY_FILE = r"Secrets\last_history.json"
+load_dotenv()
+
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 def save_last_history(history_id):
-    with open(HISTORY_FILE, "w") as f:
-        json.dump({"historyId": history_id}, f)
+    set_key(os.path.join(BASE_DIR,'.env'), "HISTORY", json.dumps({"historyId": history_id}))
 
 def load_last_history():
-    if os.path.exists(HISTORY_FILE):
-        with open(HISTORY_FILE, "r") as f:
-            return json.load(f).get("historyId")
+    history_json = os.getenv("HISTORY")
+    if history_json:
+        return json.loads(history_json).get("historyId")
     return None
