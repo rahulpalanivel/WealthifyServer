@@ -1,3 +1,4 @@
+from llm.llm_integration import extract_data
 from utils.data_processing import extract_text_from_payload, clean_text
 from utils.modify_history import save_last_history, load_last_history
 
@@ -40,13 +41,7 @@ def process_new_emails(service, incoming_history_id):
                 keyword_ok = any(k in text_body.lower() or k in subject.lower() or k in snippet.lower() for k in KEYWORDS)
 
                 if sender_ok and keyword_ok:
-                    print("\n✅ Matched Email")
-                    print("From:", sender)
-                    print("Subject:", subject)
-                    print("Body:", text_body)
-                    print("Snippet:", snippet)
-                else:
-                    print("\n⏩ Skipped Email:", subject, "from", sender)
+                    print(extract_data(text_body))
 
     # update historyId
     new_history_id = response.get("historyId", incoming_history_id)
