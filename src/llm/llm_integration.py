@@ -1,12 +1,14 @@
 import os
+import time
 from google import genai
 from dotenv import load_dotenv
 
 load_dotenv()
+client = genai.Client(api_key=os.getenv('API_KEY'))
+fields=["type", "amount", "date", "time", "Transaction Info"]
 
 def extract_data(text):
-    client = genai.Client(api_key=os.getenv('API_KEY'))
-    fields=["type", "amount", "date", "time", "Transaction Info"]
+    time.sleep(3)
     prompt = f"""You are a helpful AI Assistant, from a given text extracts the required fields.
             Text:{text}
             Fields:{fields}

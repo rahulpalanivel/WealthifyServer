@@ -7,3 +7,7 @@ google-cloud-pubsub
 google-genai
 
 python-dotenv
+
+firebase_admin
+
+google-cloud-firestore

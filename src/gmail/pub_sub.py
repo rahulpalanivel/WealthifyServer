@@ -28,7 +28,6 @@ def pull_new_messages(creds, subscription_path):
                 process_new_emails(service, history_id)
             message.ack()
         except Exception as e:
-            print("Error processing message:", e)
             message.nack()
 
     streaming_pull_future = subscriber.subscribe(subscription_path, callback=callback)
