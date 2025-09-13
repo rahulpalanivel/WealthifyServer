@@ -26,9 +26,10 @@ def pull_new_messages(creds, subscription_path):
             if history_id:
                 service = build('gmail', 'v1', credentials=creds)
                 process_new_emails(service, history_id)
-            message.ack()
+            message.ack()  # Acknowledge ONLY after success
         except Exception as e:
-            message.nack()
+            #print("Error: ", e)
+            message.nack()  # Retry if failure
 
     streaming_pull_future = subscriber.subscribe(subscription_path, callback=callback)
     print(f"Listening for messages on {subscription_path}...\n")
