@@ -8,7 +8,7 @@ ALLOWED_SENDERS = [
 ]
 KEYWORDS = ["credit", "debit"]
 
-#FIXME Local Srg to Persist
+#FIXME Local Storage to Persist
 # Keep a set of processed message IDs in memory
 # For production, store this in DB/Redis
 
@@ -57,8 +57,8 @@ def process_new_emails(service, incoming_history_id):
                 snippet = msg.get("snippet", "")
 
                 # Example filtering (customize as needed)
-                sender_ok = True  # any(s.lower() in sender.lower() for s in ALLOWED_SENDERS)
-                keyword_ok = True  # any(k in text_body.lower() for k in KEYWORDS)
+                sender_ok = True #any(s.lower() in sender.lower() for s in ALLOWED_SENDERS)
+                keyword_ok =  True #any(k in text_body.lower() for k in KEYWORDS)
 
                 if sender_ok and keyword_ok:
                     print(f"📧 New Email from {sender} | Subject: {subject}")
@@ -69,7 +69,8 @@ def process_new_emails(service, incoming_history_id):
 
                     # Uncomment for actual DB/LLM actions
                     # data = extract_data(text_body)
-                    # add_data_db(data)
+                    data = {"sender":sender, "subject": subject, "body":text_body}
+                    add_data_db(data)
 
     # Always update history ID after processing
     new_history_id = response.get("historyId", incoming_history_id)

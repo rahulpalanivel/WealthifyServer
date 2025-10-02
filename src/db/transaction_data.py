@@ -14,8 +14,6 @@ db = firestore.client(database_id="weathify-db")
 
 
 def add_data_db(data):
-    print(data)
-    print("Data Integration started")
     var = db.collection('transactions').add(data)
     print("Data Integration Ended: ", var)
 
