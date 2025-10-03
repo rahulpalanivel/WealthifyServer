@@ -1,12 +1,12 @@
 import os
 import json
+
+from dotenv import load_dotenv, set_key
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
 from google.auth.transport.requests import Request
 
 from utils.modify_history import save_last_history
-
-from dotenv import load_dotenv, set_key
 
 load_dotenv()
 

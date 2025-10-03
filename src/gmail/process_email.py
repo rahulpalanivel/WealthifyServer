@@ -8,11 +8,9 @@ ALLOWED_SENDERS = [
 ]
 KEYWORDS = ["credit", "debit"]
 
-#FIXME Local Storage to Persist
-# Keep a set of processed message IDs in memory
-# For production, store this in DB/Redis
-
 processed_message_ids = set()
+PROCESSED_LIMIT = 1000  # max number of message IDs to keep
+
 
 def process_new_emails(service, incoming_history_id):
     last_history_id = load_last_history()
@@ -41,7 +39,6 @@ def process_new_emails(service, incoming_history_id):
 
                 # Skip if we've already processed this message
                 if msg_id in processed_message_ids:
-                    #print(f"Skipping duplicate message: {msg_id}")
                     continue
 
                 # Fetch full message details
@@ -57,19 +54,22 @@ def process_new_emails(service, incoming_history_id):
                 snippet = msg.get("snippet", "")
 
                 # Example filtering (customize as needed)
-                sender_ok = True #any(s.lower() in sender.lower() for s in ALLOWED_SENDERS)
-                keyword_ok =  True #any(k in text_body.lower() for k in KEYWORDS)
+                sender_ok = True  # any(s.lower() in sender.lower() for s in ALLOWED_SENDERS)
+                keyword_ok = True  # any(k in text_body.lower() for k in KEYWORDS)
 
                 if sender_ok and keyword_ok:
                     print(f"📧 New Email from {sender} | Subject: {subject}")
                     print(text_body)
 
-                    # Add to processed set
+                    # Add to processed set with size limit
                     processed_message_ids.add(msg_id)
+                    if len(processed_message_ids) > PROCESSED_LIMIT:
+                        print(f"Processed message cache exceeded {PROCESSED_LIMIT}, clearing...")
+                        processed_message_ids.clear()
 
                     # Uncomment for actual DB/LLM actions
                     # data = extract_data(text_body)
-                    data = {"sender":sender, "subject": subject, "body":text_body}
+                    data = {"sender": sender, "subject": subject, "body": text_body}
                     add_data_db(data)
 
     # Always update history ID after processing

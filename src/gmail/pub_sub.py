@@ -1,7 +1,7 @@
 import json
 import os
-from dotenv import load_dotenv
 
+from dotenv import load_dotenv
 from googleapiclient.discovery import build
 from google.cloud import pubsub_v1
 from google.oauth2 import service_account

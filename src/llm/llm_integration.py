@@ -1,9 +1,11 @@
 import os
 import time
-from google import genai
+
 from dotenv import load_dotenv
+from google import genai
 
 load_dotenv()
+
 client = genai.Client(api_key=os.getenv('API_KEY'))
 fields=["type", "amount", "date", "time", "Transaction Info"]
 
