@@ -16,6 +16,7 @@ def extract_data(text):
             Fields:{fields}
             Do not provide any explanations.
             Return the output in the below provided JSON format only.
+            Do not return the result in JSON markdown.
             Below is an example provided, Return the output based on the JSON format of the given example.
             {
                 {
@@ -32,4 +33,4 @@ def extract_data(text):
         model="gemini-2.5-flash",
         contents=prompt
     )
-    return response.text.split("```json")[1].split("```")[0]
+    return response.text

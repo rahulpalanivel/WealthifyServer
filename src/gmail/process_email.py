@@ -6,7 +6,7 @@ from utils.modify_history import save_last_history, load_last_history
 ALLOWED_SENDERS = [
     "alerts@axisbank.com",
 ]
-KEYWORDS = ["credit", "debit"]
+KEYWORDS = ["credited", "debited"]
 
 processed_message_ids = set()
 PROCESSED_LIMIT = 1000  # max number of message IDs to keep
@@ -54,12 +54,11 @@ def process_new_emails(service, incoming_history_id):
                 snippet = msg.get("snippet", "")
 
                 # Example filtering (customize as needed)
-                sender_ok = True  # any(s.lower() in sender.lower() for s in ALLOWED_SENDERS)
-                keyword_ok = True  # any(k in text_body.lower() for k in KEYWORDS)
+                sender_ok = any(s.lower() in sender.lower() for s in ALLOWED_SENDERS)
+                keyword_ok = any(k in text_body.lower() for k in KEYWORDS)
 
                 if sender_ok and keyword_ok:
-                    print(f"📧 New Email from {sender} | Subject: {subject}")
-                    print(text_body)
+                    print("Text", text_body, '\n')
 
                     # Add to processed set with size limit
                     processed_message_ids.add(msg_id)
@@ -68,9 +67,9 @@ def process_new_emails(service, incoming_history_id):
                         processed_message_ids.clear()
 
                     # Uncomment for actual DB/LLM actions
-                    # data = extract_data(text_body)
-                    data = {"sender": sender, "subject": subject, "body": text_body}
-                    add_data_db(data)
+                    data = extract_data(text_body)
+                    print("Data", data, '\n')
+                    #add_data_db(data)
 
     # Always update history ID after processing
     new_history_id = response.get("historyId", incoming_history_id)
